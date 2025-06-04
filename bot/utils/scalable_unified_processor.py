@@ -268,16 +268,18 @@ class ScalableUnifiedProcessor:
             logger.error(f"Failed to update player sessions: {e}")
             return False
 
-    async def _send_connection_embeds(self, state_changes: List[Dict[str, Any]]) -> bool:
+    async def _send_connection_embeds(self, state_changes: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Send connection embeds using themed embed factory"""
         try:
             from bot.utils.channel_router import ChannelRouter
             from bot.utils.embed_factory import EmbedFactory
 
             channel_router = ChannelRouter(self.bot)
+            processed_changes = []
 
             for change in state_changes:
                 embed = None
+                file_attachment = None
                 channel_type = 'connections'  # Use connections channel for player events
 
                 # Only send embeds for specific state transitions
@@ -286,34 +288,42 @@ class ScalableUnifiedProcessor:
                     embed_data = {
                         'player_name': change['player_name'],
                         'eos_id': change['eos_id'],
+                        'platform': 'PC',
                         'server_name': change.get('server_name', 'Unknown'),
                         'timestamp': change.get('timestamp')
                     }
-                    embed = EmbedFactory.create_player_connect_embed(embed_data)
+                    embed, file_attachment = await EmbedFactory.build('connection', embed_data)
 
                 elif change['old_state'] == 'online' and change['new_state'] == 'offline':
                     # Player disconnected (online -> offline)
                     embed_data = {
                         'player_name': change['player_name'],
                         'eos_id': change['eos_id'],
+                        'platform': 'PC',
                         'server_name': change.get('server_name', 'Unknown'),
                         'timestamp': change.get('timestamp')
                     }
-                    embed = EmbedFactory.create_player_disconnect_embed(embed_data)
+                    embed, file_attachment = await EmbedFactory.build('disconnection', embed_data)
 
                 if embed:
-                    await channel_router.send_embed_to_channel(
+                    success = await channel_router.send_embed_to_channel(
                         guild_id=change['guild_id'],
                         server_id=change['server_id'],
                         channel_type=channel_type,
-                        embed=embed
+                        embed=embed,
+                        file=file_attachment
                     )
+                    if success:
+                        processed_changes.append(change)
+                        logger.info(f"✅ Sent connection embed for {change['player_name']}")
+                    else:
+                        logger.warning(f"❌ Failed to send connection embed for {change['player_name']}")
 
-            return True
+            return processed_changes
 
         except Exception as e:
-            logger.error(f"Error sending connection embeds batch: {e}")
-            return False
+            logger.error(f"Error sending connection embeds: {e}")
+            return []
 
     async def send_event_embeds(self, events: List[Dict[str, Any]]) -> bool:
         """Send Discord embeds for game events using themed embed factory"""
@@ -429,9 +439,9 @@ class ScalableUnifiedProcessor:
             mission_name = match_groups[0] if match_groups else 'Unknown Mission'
             mission_level = self._extract_mission_level(mission_name)
 
-            # Block missions below level 3
-            if mission_level < 3:
-                return None  # Skip low-level missions
+            # Accept all mission levels for now
+            # if mission_level < 3:
+            #     return None  # Skip low-level missions
 
             # Only output missions in READY state (mission_start), skip WAITING state
             if event_type == 'mission_end':
@@ -646,15 +656,23 @@ class ScalableUnifiedProcessor:
         """Send connection embeds using batch processing with proper EmbedFactory integration"""
         try:
             if not state_changes:
-                return
+                return []
 
             from bot.utils.embed_factory import EmbedFactory
+            from bot.utils.channel_router import ChannelRouter
+
+            channel_router = ChannelRouter(self.bot)
+            processed_changes = []
 
             for change in state_changes:
                 guild_id = change.get('guild_id')
                 server_id = change.get('server_id')
+                old_state = change.get('old_state', 'offline')
+                new_state = change.get('new_state', 'offline')
 
-                if change.get('event_type') == 'connect':
+                # Determine event type based on state transition
+                if old_state == 'queued' and new_state == 'online':
+                    # Player connected
                     embed_data = {
                         'player_name': change.get('player_name'),
                         'platform': change.get('platform', 'PC'),
@@ -665,15 +683,17 @@ class ScalableUnifiedProcessor:
                     # Use EmbedFactory to build connection embed
                     embed, file_attachment = await EmbedFactory.build('connection', embed_data)
 
-                    # Use channel router to send to appropriate channel
-                    if hasattr(self.bot, 'channel_router'):
-                        success = await self.bot.channel_router.send_embed_to_channel(
-                            guild_id, server_id, 'events', embed, file_attachment
-                        )
-                        if not success:
-                            logger.warning(f"Failed to send connection embed for {change.get('player_name')}")
+                    # Use channel router to send to connections channel
+                    success = await channel_router.send_embed_to_channel(
+                        guild_id, server_id, 'connections', embed, file_attachment
+                    )
+                    if success:
+                        processed_changes.append(change)
+                    else:
+                        logger.warning(f"Failed to send connection embed for {change.get('player_name')}")
 
-                elif change.get('event_type') == 'disconnect':
+                elif old_state == 'online' and new_state == 'offline':
+                    # Player disconnected
                     embed_data = {
                         'player_name': change.get('player_name'),
                         'platform': change.get('platform', 'PC'),
@@ -684,99 +704,101 @@ class ScalableUnifiedProcessor:
                     # Use EmbedFactory to build disconnection embed
                     embed, file_attachment = await EmbedFactory.build('disconnection', embed_data)
 
-                    # Use channel router to send to appropriate channel
-                    if hasattr(self.bot, 'channel_router'):
-                        success = await self.bot.channel_router.send_embed_to_channel(
-                            guild_id, server_id, 'events', embed, file_attachment
-                        )
-                        if not success:
-                            logger.warning(f"Failed to send disconnection embed for {change.get('player_name')}")
+                    # Use channel router to send to connections channel
+                    success = await channel_router.send_embed_to_channel(
+                        guild_id, server_id, 'connections', embed, file_attachment
+                    )
+                    if success:
+                        processed_changes.append(change)
+                    else:
+                        logger.warning(f"Failed to send disconnection embed for {change.get('player_name')}")
+
+            return processed_changes
 
         except Exception as e:
             logger.error(f"Error sending connection embeds batch: {e}")
+            return []
 
     async def send_event_embeds_batch(self, game_events: List[Dict]):
         """Send game event embeds using batch processing with proper EmbedFactory integration"""
         try:
             if not game_events:
-                return
+                return []
 
             from bot.utils.embed_factory import EmbedFactory
+            from bot.utils.channel_router import ChannelRouter
+
+            channel_router = ChannelRouter(self.bot)
+            processed_events = []
 
             for event in game_events:
                 guild_id = event.get('guild_id')
                 server_id = event.get('server_id')
                 event_type = event.get('event')
 
+                embed = None
+                file_attachment = None
+                channel_type = 'events'  # Default channel
+
                 if event_type == 'mission_start':
+                    mission_name = event.get('mission_name', event.get('details', ['Unknown'])[0] if event.get('details') else 'Unknown')
                     embed_data = {
-                        'mission_id': event.get('mission_id', 'Unknown'),
+                        'mission_id': mission_name,
                         'state': 'READY',
-                        'level': event.get('level', 1),
-                        'guild_id': guild_id
+                        'level': event.get('mission_level', 1),
+                        'guild_id': guild_id,
+                        'server_name': event.get('server_name', 'Unknown'),
+                        'timestamp': event.get('timestamp')
                     }
-
-                    # Use EmbedFactory to build mission embed
                     embed, file_attachment = await EmbedFactory.build('mission', embed_data)
+                    channel_type = 'missions'
 
-                    # Use channel router to send to missions channel
-                    if hasattr(self.bot, 'channel_router'):
-                        success = await self.bot.channel_router.send_embed_to_channel(
-                            guild_id, server_id, 'missions', embed, file_attachment
-                        )
-                        if not success:
-                            logger.warning(f"Failed to send mission embed for {event.get('mission_id')}")
-
-                elif event_type == 'airdrop':
+                elif event_type in ['airdrop_flying']:
                     embed_data = {
-                        'guild_id': guild_id
+                        'guild_id': guild_id,
+                        'server_name': event.get('server_name', 'Unknown'),
+                        'timestamp': event.get('timestamp')
                     }
-
-                    # Use EmbedFactory to build airdrop embed
                     embed, file_attachment = await EmbedFactory.build('airdrop', embed_data)
+                    channel_type = 'events'
 
-                    # Use channel router to send to airdrop channel
-                    if hasattr(self.bot, 'channel_router'):
-                        success = await self.bot.channel_router.send_embed_to_channel(
-                            guild_id, server_id, 'airdrop', embed, file_attachment
-                        )
-                        if not success:
-                            logger.warning(f"Failed to send airdrop embed")
-
-                elif event_type == 'helicrash':
+                elif event_type in ['helicrash_ready']:
                     embed_data = {
-                        'guild_id': guild_id
+                        'guild_id': guild_id,
+                        'server_name': event.get('server_name', 'Unknown'),
+                        'timestamp': event.get('timestamp')
                     }
-
-                    # Use EmbedFactory to build helicrash embed
                     embed, file_attachment = await EmbedFactory.build('helicrash', embed_data)
+                    channel_type = 'events'
 
-                    # Use channel router to send to helicrash channel
-                    if hasattr(self.bot, 'channel_router'):
-                        success = await self.bot.channel_router.send_embed_to_channel(
-                            guild_id, server_id, 'helicrash', embed, file_attachment
-                        )
-                        if not success:
-                            logger.warning(f"Failed to send helicrash embed")
-
-                elif event_type == 'trader':
+                elif event_type in ['trader_arrival']:
                     embed_data = {
-                        'guild_id': guild_id
+                        'guild_id': guild_id,
+                        'trader_name': 'Trader',
+                        'server_name': event.get('server_name', 'Unknown'),
+                        'timestamp': event.get('timestamp')
                     }
-
-                    # Use EmbedFactory to build trader embed
                     embed, file_attachment = await EmbedFactory.build('trader', embed_data)
+                    channel_type = 'events'
 
-                    # Use channel router to send to trader channel
-                    if hasattr(self.bot, 'channel_router'):
-                        success = await self.bot.channel_router.send_embed_to_channel(
-                            guild_id, server_id, 'trader', embed, file_attachment
-                        )
-                        if not success:
-                            logger.warning(f"Failed to send trader embed")
+                # Send embed to appropriate channel
+                if embed:
+                    success = await channel_router.send_embed_to_channel(
+                        guild_id, server_id, channel_type, embed, file_attachment
+                    )
+                    if success:
+                        processed_events.append(event)
+                        logger.info(f"✅ Sent {event_type} embed to {channel_type} channel")
+                    else:
+                        logger.warning(f"❌ Failed to send {event_type} embed to {channel_type} channel")
+                else:
+                    logger.warning(f"❌ No embed created for event type: {event_type}")
+
+            return processed_events
 
         except Exception as e:
             logger.error(f"Error sending event embeds batch: {e}")
+            return []
 
     async def _create_event_embed(self, event: Dict[str, Any]) -> Optional[tuple]:
         """Create professional Discord embed using embed factory"""

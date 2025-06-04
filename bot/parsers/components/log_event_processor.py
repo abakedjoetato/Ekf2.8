@@ -46,12 +46,12 @@ class LogEventProcessor:
             'mission_in_progress': re.compile(r'LogSFPS: Mission (GA_[A-Za-z0-9_]+) switched to IN_PROGRESS', re.IGNORECASE),
             'mission_completed': re.compile(r'LogSFPS: Mission (GA_[A-Za-z0-9_]+) switched to COMPLETED', re.IGNORECASE),
             
-            # Event patterns - improved detection
-            'airdrop_event': re.compile(r'(?:Event_AirDrop|AirDrop.*Event|spawned.*AirDrop).*(?:location|spawned|at).*X[=:\s]*([\d\.-]+).*Y[=:\s]*([\d\.-]+)', re.IGNORECASE),
-            'airdrop_simple': re.compile(r'AirDrop.*(?:spawned|active|ready|deployed)', re.IGNORECASE),
-            'helicrash_event': re.compile(r'(?:HeliCrash|Helicopter.*Crash|HelicrashEvent|Heli.*spawned)', re.IGNORECASE),
-            'trader_spawn': re.compile(r'(?:trader|Trader).*(?:spawn|ready|arrived|active|Zone)', re.IGNORECASE),
-            'trader_event': re.compile(r'LogSFPS:.*(?:trader|TraderZone).*(?:switched|active|ready)', re.IGNORECASE),
+            # Event patterns - improved detection with more flexible matching
+            'airdrop_event': re.compile(r'(?:Event_AirDrop|AirDrop.*Event|spawned.*AirDrop|LogSFPS:.*AirDrop).*(?:location|spawned|at|Flying).*X[=:\s]*([\d\.-]+).*Y[=:\s]*([\d\.-]+)', re.IGNORECASE),
+            'airdrop_simple': re.compile(r'(?:AirDrop|LogSFPS:.*AirDrop).*(?:spawned|active|ready|deployed|Flying)', re.IGNORECASE),
+            'helicrash_event': re.compile(r'(?:HeliCrash|Helicopter.*Crash|HelicrashEvent|Heli.*spawned|LogSFPS:.*Helicopter)', re.IGNORECASE),
+            'trader_spawn': re.compile(r'(?:trader|Trader|LogSFPS:.*Trader).*(?:spawn|ready|arrived|active|Zone)', re.IGNORECASE),
+            'trader_event': re.compile(r'LogSFPS:.*(?:trader|TraderZone|Trader).*(?:switched|active|ready|arrived)', re.IGNORECASE),
             
             # Player activity patterns (for detecting active players)
             'player_activity': re.compile(r'LogNet:.*UChannel.*ActorChannel.*\|([a-f0-9]+)', re.IGNORECASE),
