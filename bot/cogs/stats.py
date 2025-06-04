@@ -951,7 +951,6 @@ class Stats(discord.Cog):
             logger.error(f"Failed to defer interaction: {e}")
             return
 
-        try:
             if not ctx.guild:
                 await ctx.followup.send("This command can only be used in a server!", ephemeral=True)
                 return
