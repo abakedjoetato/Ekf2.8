@@ -1,0 +1,6 @@
+pyproject.toml
+emerald_killfeed_bot.egg-info/PKG-INFO
+emerald_killfeed_bot.egg-info/SOURCES.txt
+emerald_killfeed_bot.egg-info/dependency_links.txt
+emerald_killfeed_bot.egg-info/requires.txt
+emerald_killfeed_bot.egg-info/top_level.txt
