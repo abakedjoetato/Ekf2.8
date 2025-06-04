@@ -6,7 +6,6 @@ Requires-Python: >=3.11
 Requires-Dist: apscheduler>=3.11.0
 Requires-Dist: asyncssh>=2.21.0
 Requires-Dist: boto3>=1.38.30
-Requires-Dist: discord-py>=2.5.2
 Requires-Dist: flask>=3.1.1
 Requires-Dist: motor>=3.7.1
 Requires-Dist: py-cord==2.6.1
