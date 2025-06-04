@@ -978,5 +978,14 @@ class Stats(discord.Cog):
                 logger.info(f"Found {len(sessions)} player sessions for /online command")
 
                 # Debug: Log first few sessions to see what data we have
-                for i, session in enumerate(sessions[:0. Do not include the location indication comments like "Updated here"
-The following code enhances the player name resolution in the online command.
+                for i, session in enumerate(sessions[:3]):
+                    logger.debug(f"Session {i}: {session}")
+
+            except Exception as e:
+                logger.error(f"Database query failed: {e}")
+                await ctx.respond("❌ Failed to retrieve player data from database", ephemeral=True)
+                return
+
+        except Exception as e:
+            logger.error(f"Online command failed: {e}")
+            await ctx.followup.send("❌ Command execution failed", ephemeral=True)
