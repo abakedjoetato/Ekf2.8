@@ -26,8 +26,7 @@ except ImportError as e:
     print("Please ensure py-cord 2.6.1 is installed")
     sys.exit(1)
 
-# Block discord.py imports after successful py-cord import
-import discord_py_blocker
+# Note: discord_py_blocker is available but not auto-loaded since py-cord is working
 
 from dotenv import load_dotenv
 from motor.motor_asyncio import AsyncIOMotorClient
