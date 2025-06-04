@@ -1,0 +1,111 @@
+EMERALD'S KILLFEED — CLEAN STARTUP & FULL COG INITIALIZATION
+
+🧩 TASK TYPE: SINGLE TASK — NO STOPPING, NO PARTIAL COMMITS
+
+You must complete this entire startup and validation process in a single atomic operation. Do not output, checkpoint, or commit until all steps are verified successful in production.
+
+
+---
+
+# [PHASE 0] — PROJECT EXTRACTION & BOT BOOTSTRAP
+
+Goal: Ensure a fresh boot cycle using a ZIP file input and a clean startup with no cog failures.
+
+✅ ZIP Extraction and Prep:
+
+[ ] Locate the uploaded .zip archive in attached_assets
+
+[ ] Unzip the archive into a temporary directory
+
+[ ] Move all unzipped contents to the root project directory
+
+[ ] Remove nested folders like /project/, /main/, /DeadsideBot/ etc. if present
+
+[ ] Delete any empty folders
+
+
+✅ Configuration Setup:
+
+[ ] Confirm .env file or environment secrets are loaded from Replit
+
+BOT_TOKEN
+
+MONGO_URI
+
+
+[ ] Confirm all static assets (logos, icons) are present in assets/
+
+
+✅ Launch Bot:
+
+[ ] Start the bot using main.py
+
+[ ] Wait for all modules and dependencies to load
+
+
+
+---
+
+# [PHASE 1] — COG VERIFICATION & STARTUP LOG INSPECTION
+
+Goal: Guarantee that the bot loads 100% cleanly with all features enabled.
+
+✅ Cog System Diagnostics:
+
+[ ] Check Replit log output for cog registration messages
+
+[ ] Ensure 11 total cogs are loaded with zero errors or missing modules
+
+[ ] Confirm presence of the following messages:
+
+✅ Bot logged in as Emeralds Killfeed
+
+✅ Connected to X guilds
+
+✅ All required assets found
+
+✅ Registering commands with Discord
+
+✅ CogName loaded successfully (for each cog)
+
+
+
+✅ Command Readiness:
+
+[ ] Confirm commands are synced with Discord (either global or fallback to guild)
+
+[ ] No rate limit errors should prevent registration
+
+[ ] No tracebacks, exceptions, or ImportError / AttributeError anywhere in logs
+
+
+
+---
+
+✅ COMPLETION CRITERIA
+
+[ ] All cogs are registered and loaded with no failures
+
+[ ] Bot starts cleanly in production mode with Replit/Railway
+
+[ ] Startup logs confirm readiness
+
+[ ] No unhandled errors or missing modules
+
+[ ] The bot responds to commands as expected
+
+
+
+---
+
+🔐 DEVELOPMENT ETHOS (DO NOT SKIP)
+
+✅ Use py-cord 2.6.1 syntax only — Never use discord.py
+
+🔍 Double check all config variables and secrets
+
+⚙️ All commands, parsers, and events must be initialized and error-free
+
+🛑 No checkpointing, partial commits, or output before full success
+
+💬 Startup logs must be parsed to ensure full boot and command sync completed
