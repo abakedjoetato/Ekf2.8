@@ -327,26 +327,12 @@ class Stats(discord.Cog):
         import asyncio
 
         try:
-
-
-            pass
-            # Immediate defer to prevent Discord timeout
+            # Single defer with proper error handling
             try:
-
-                pass
                 await ctx.defer()
-
-            except discord.errors.NotFound:
-
-                # Interaction already expired, respond immediately
-
-                await ctx.respond("Processing...", ephemeral=True)
-
-            except Exception as e:
-
-                logger.error(f"Failed to defer interaction: {e}")
-
-                await ctx.respond("Processing...", ephemeral=True)
+            except (discord.errors.NotFound, discord.errors.HTTPException) as e:
+                logger.warning(f"Defer failed, interaction may be expired: {e}")
+                return
 
             if not ctx.guild:
                 try:
@@ -513,26 +499,7 @@ class Stats(discord.Cog):
                         return
                     player_characters, display_name = resolve_result
 
-            try:
-
-
-                pass
-                pass
-            except discord.errors.NotFound:
-                # Interaction already expired, respond immediately
-                pass
-
-
-                await ctx.respond("Processing...", ephemeral=True)
-
-
-            except Exception as e:
-
-
-                logger.error(f"Failed to defer interaction: {e}")
-
-
-                await ctx.respond("Processing...", ephemeral=True)
+            # Defer already handled above
 
             # Get combined stats with timeout protection
             import asyncio
@@ -840,28 +807,10 @@ class Stats(discord.Cog):
                 return
 
             try:
-
-
-                pass
                 await ctx.defer()
-
-
-            except discord.errors.NotFound:
-
-
-                # Interaction already expired, respond immediately
-
-
-                await ctx.respond("Processing...", ephemeral=True)
-
-
-            except Exception as e:
-
-
-                logger.error(f"Failed to defer interaction: {e}")
-
-
-                await ctx.respond("Processing...", ephemeral=True)
+            except (discord.errors.NotFound, discord.errors.HTTPException) as e:
+                logger.warning(f"Defer failed for comparison: {e}")
+                return
 
             # Get stats for both players
             stats1 = await self.get_player_combined_stats(guild_id or 0, player1_data['linked_characters'])

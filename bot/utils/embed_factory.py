@@ -231,6 +231,11 @@ class EmbedFactory:
             return await EmbedFactory.build_error_embed("Leaderboard system error")
 
     @staticmethod
+    async def build_advanced_stats_profile(embed_data: Dict[str, Any]) -> Tuple[discord.Embed, discord.File]:
+        """Compatibility method for stats system"""
+        return await EmbedFactory.build_advanced_stats_embed(embed_data)
+
+    @staticmethod
     async def build_advanced_stats_embed(embed_data: Dict[str, Any]) -> Tuple[discord.Embed, discord.File]:
         """Build comprehensive stats profile with military intelligence formatting"""
         try:

@@ -86,10 +86,10 @@ class ScalableUnifiedProcessor:
                         login_name = match.group(1).strip()
                         eos_id = match.group(2).strip()
                         name_field = match.group(3).strip()
-                        
+
                         # Use best available name with fallback logic
                         resolved_name = self._resolve_player_name(login_name, name_field)
-                        
+
                         return {
                             'timestamp': timestamp,
                             'type': 'connection',
@@ -794,6 +794,7 @@ class ScalableUnifiedProcessor:
                 else:
                     logger.warning(f"❌ No embed created for event type: {event_type}")
 
+```python
             return processed_events
 
         except Exception as e:
@@ -930,17 +931,17 @@ class ScalableUnifiedProcessor:
         """Resolve the best player name from available fields with validation"""
         try:
             import urllib.parse
-            
+
             # Decode URL-encoded names
             def decode_name(name):
                 try:
                     return urllib.parse.unquote_plus(name) if name else ""
                 except:
                     return name or ""
-            
+
             decoded_login = decode_name(login_name)
             decoded_name = decode_name(name_field)
-            
+
             # Validation function
             def is_valid_name(name):
                 if not name or len(name) < 2 or len(name) > 32:
@@ -952,7 +953,7 @@ class ScalableUnifiedProcessor:
                 if not any(c.isalpha() for c in name):
                     return False
                 return True
-            
+
             # Priority: Name field first, then login field
             if is_valid_name(decoded_name):
                 return decoded_name
@@ -964,7 +965,7 @@ class ScalableUnifiedProcessor:
                 return decoded_login
             else:
                 return "Unknown"
-                
+
         except Exception as e:
             logger.debug(f"Name resolution failed: {e}")
             return name_field or login_name or "Unknown"
@@ -1028,3 +1029,70 @@ class ScalableUnifiedProcessor:
         except Exception as e:
             logger.error(f"Error fetching server logs: {e}")
             return ""
+
+    async def send_connection_embeds_batch(self, state_changes: List[Dict]):
+        """Send connection embeds using batch processing with proper EmbedFactory integration"""
+        try:
+            if not state_changes:
+                return []
+
+            from bot.utils.embed_factory import EmbedFactory
+            from bot.utils.channel_router import ChannelRouter
+
+            channel_router = ChannelRouter(self.bot)
+            processed_changes = []
+
+            for change in state_changes:
+                guild_id = change.get('guild_id')
+                server_id = change.get('server_id')
+                old_state = change.get('old_state', 'offline')
+                new_state = change.get('new_state', 'offline')
+
+                # Determine event type based on state transition
+                if old_state == 'queued' and new_state == 'online':
+                    # Player connected
+                    embed_data = {
+                        'player_name': change.get('player_name'),
+                        'platform': change.get('platform', 'PC'),
+                        'server_name': change.get('server_name', 'Unknown'),
+                        'guild_id': guild_id
+                    }
+
+                    # Use EmbedFactory to build connection embed
+                    embed, file_attachment = await EmbedFactory.build('connection', embed_data)
+
+                    # Use channel router to send to connections channel
+                    success = await channel_router.send_embed_to_channel(
+                        guild_id, server_id, 'connections', embed, file_attachment
+                    )
+                    if success:
+                        processed_changes.append(change)
+                    else:
+                        logger.warning(f"Failed to send connection embed for {change.get('player_name')}")
+
+                elif old_state == 'online' and new_state == 'offline':
+                    # Player disconnected
+                    embed_data = {
+                        'player_name': change.get('player_name'),
+                        'platform': change.get('platform', 'PC'),
+                        'server_name': change.get('server_name', 'Unknown'),
+                        'guild_id': guild_id
+                    }
+
+                    # Use EmbedFactory to build disconnection embed
+                    embed, file_attachment = await EmbedFactory.build('disconnection', embed_data)
+
+                    # Use channel router to send to connections channel
+                    success = await channel_router.send_embed_to_channel(
+                        guild_id, server_id, 'connections', embed, file_attachment
+                    )
+                    if success:
+                        processed_changes.append(change)
+                    else:
+                        logger.warning(f"Failed to send disconnection embed for {change.get('player_name')}")
+
+            return processed_changes
+
+        except Exception as e:
+            logger.error(f"Error sending connection embeds batch: {e}")
+            return []
