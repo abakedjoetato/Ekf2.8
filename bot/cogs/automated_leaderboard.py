@@ -3,13 +3,14 @@ Emerald's Killfeed - Automated Consolidated Leaderboard
 Posts and updates consolidated leaderboards every 30 minutes
 """
 
-import logging
 import asyncio
+import logging
 
 import discord
 from discord.commands import SlashCommandGroup
 from discord.ext import commands
 from bot.cogs.autocomplete import ServerAutocomplete
+from bot.utils.embed_factory import EmbedFactory
 
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
