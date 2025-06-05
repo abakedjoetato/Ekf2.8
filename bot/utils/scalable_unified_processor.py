@@ -794,8 +794,7 @@ class ScalableUnifiedProcessor:
                 else:
                     logger.warning(f"❌ No embed created for event type: {event_type}")
 
-```python
-            return processed_events
+return processed_events
 
         except Exception as e:
             logger.error(f"Error sending event embeds batch: {e}")

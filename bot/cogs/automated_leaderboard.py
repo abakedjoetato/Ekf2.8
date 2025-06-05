@@ -15,16 +15,16 @@ logger = logging.getLogger(__name__)
 
 class LeaderboardView(discord.ui.View):
     """Interactive view for enhanced leaderboard with multi-user functionality"""
-    
+
     def __init__(self, guild_id: int):
         super().__init__(timeout=None)  # Persistent view
         self.guild_id = guild_id
-    
+
     @discord.ui.button(label="📊 Detailed Stats", style=discord.ButtonStyle.primary, emoji="📊")
     async def detailed_stats(self, interaction: discord.Interaction, button: discord.ui.Button):
         """Show detailed player statistics"""
         await interaction.response.defer(ephemeral=True)
-        
+
         # Create detailed stats embed
         embed = discord.Embed(
             title="📊 Detailed Server Statistics",
@@ -32,7 +32,7 @@ class LeaderboardView(discord.ui.View):
             color=0x00ff88,
             timestamp=datetime.now(timezone.utc)
         )
-        
+
         embed.add_field(
             name="🎯 Available Commands",
             value="• `/stats <player>` - Individual player stats\n"
@@ -41,15 +41,15 @@ class LeaderboardView(discord.ui.View):
                   "• `/factions` - Faction rankings",
             inline=False
         )
-        
+
         embed.set_footer(text="Use slash commands for detailed statistics")
         await interaction.followup.send(embed=embed, ephemeral=True)
-    
+
     @discord.ui.button(label="🔄 Refresh", style=discord.ButtonStyle.secondary, emoji="🔄")
     async def refresh_leaderboard(self, interaction: discord.Interaction, button: discord.ui.Button):
         """Manually refresh the leaderboard"""
         await interaction.response.defer()
-        
+
         # Get the automated leaderboard cog
         cog = interaction.client.get_cog('AutomatedLeaderboard')
         if cog:
@@ -57,7 +57,7 @@ class LeaderboardView(discord.ui.View):
             guild_config = await interaction.client.db_manager.guild_configs.find_one({
                 "guild_id": self.guild_id
             })
-            
+
             if guild_config:
                 # Update the leaderboard
                 await cog.update_guild_leaderboard(guild_config, force_create=False)
@@ -66,7 +66,7 @@ class LeaderboardView(discord.ui.View):
                 await interaction.followup.send("❌ Guild configuration not found", ephemeral=True)
         else:
             await interaction.followup.send("❌ Leaderboard system unavailable", ephemeral=True)
-    
+
     @discord.ui.select(
         placeholder="🎮 Select Category...",
         options=[
@@ -81,24 +81,24 @@ class LeaderboardView(discord.ui.View):
     async def category_select(self, interaction: discord.Interaction, select: discord.ui.Select):
         """Show specific leaderboard category"""
         await interaction.response.defer(ephemeral=True)
-        
+
         category = select.values[0]
-        
+
         # Get leaderboard data for specific category
         cog = interaction.client.get_cog('AutomatedLeaderboard')
         if not cog:
             await interaction.followup.send("❌ Leaderboard system unavailable", ephemeral=True)
             return
-            
+
         # Create category-specific embed
         embed = discord.Embed(
             title=f"🏆 {select.options[next(i for i, opt in enumerate(select.options) if opt.value == category)].label}",
             color=0x00ff88,
             timestamp=datetime.now(timezone.utc)
         )
-        
+
         embed.set_thumbnail(url="attachment://Leaderboard.png")
-        
+
         try:
             # Get data based on category
             if category == "kills":
@@ -110,7 +110,7 @@ class LeaderboardView(discord.ui.View):
                         kills = player.get('kills', 0)
                         text += f"`{i:2}.` **{name}** • `{kills:,}` kills\n"
                     embed.add_field(name="🔥 Top Eliminators", value=text or "No data", inline=False)
-            
+
             elif category == "kdr":
                 data = await cog.get_top_kdr(self.guild_id, 10)
                 if data:
@@ -120,15 +120,15 @@ class LeaderboardView(discord.ui.View):
                         kdr = player.get('kdr', 0.0)
                         text += f"`{i:2}.` **{name}** • `{kdr:.2f}` KDR\n"
                     embed.add_field(name="⚡ Elite Ratios", value=text or "No data", inline=False)
-            
+
             # Add more categories as needed
             else:
                 embed.add_field(name="Coming Soon", value=f"{category.title()} leaderboard will be available soon!", inline=False)
-        
+
         except Exception as e:
             logger.error(f"Error showing category {category}: {e}")
             embed.add_field(name="Error", value="Unable to load data for this category", inline=False)
-        
+
         await interaction.followup.send(embed=embed, ephemeral=True)
 
 class AutomatedLeaderboard(discord.Cog):
@@ -138,7 +138,7 @@ class AutomatedLeaderboard(discord.Cog):
         self.bot = bot
         self.message_cache = {}  # Store {guild_id: message_id}
         logger.info("🤖 Automated leaderboard cog initialized")
-        
+
         # Start tasks after bot is ready
         self.bot.loop.create_task(self.start_after_ready())
 
@@ -147,7 +147,7 @@ class AutomatedLeaderboard(discord.Cog):
         await self.bot.wait_until_ready()
         logger.info("🔄 Starting automated leaderboard task...")
         self.automated_leaderboard_task.start()
-        
+
         # Don't run initial check to prevent duplicates - regular task will handle it
         logger.info("🚀 Automated leaderboard will run on schedule to prevent duplicates")
 
@@ -245,9 +245,9 @@ class AutomatedLeaderboard(discord.Cog):
                     message.embeds and 
                     any("Leaderboard" in embed.title for embed in message.embeds)):
                     return False  # Found existing leaderboard
-            
+
             return True  # No leaderboard found, needs creation
-            
+
         except Exception as e:
             logger.error(f"Error checking missing leaderboards: {e}")
             return True  # Assume missing on error
@@ -265,19 +265,19 @@ class AutomatedLeaderboard(discord.Cog):
             # Check new server_channels structure first
             server_channels_config = guild_config.get('server_channels', {})
             default_server = server_channels_config.get('default', {})
-            
+
             # Check legacy channels structure
             legacy_channels = guild_config.get('channels', {})
-            
+
             # Priority: default server -> legacy channels
             leaderboard_channel_id = (default_server.get('leaderboard') or 
                                     legacy_channels.get('leaderboard'))
-            
+
             if not leaderboard_channel_id:
                 return None
 
             return guild.get_channel(leaderboard_channel_id)
-            
+
         except Exception as e:
             logger.error(f"Error getting leaderboard channel: {e}")
             return None
@@ -302,23 +302,23 @@ class AutomatedLeaderboard(discord.Cog):
             logger.error(f"Error getting top kills for automated leaderboard: {e}")
             return []
 
-    
+
     async def _collect_leaderboard_data(self, guild_id: int, server_id: str = None) -> Dict[str, Any]:
         """Collect all leaderboard data from correct database collections"""
         try:
 
             pass
             data = {}
-            
+
             # Base query for filtering
             base_query = {"guild_id": guild_id}
             if server_id and server_id != "all":
                 base_query["server_id"] = server_id
-            
+
             # Top killers from pvp_data
             kills_cursor = self.bot.db_manager.pvp_data.find(base_query).sort("kills", -1).limit(10)
             data["top_killers"] = await kills_cursor.to_list(length=None)
-            
+
             # Top KDR (only players with deaths > 0)
             kdr_query = {**base_query, "deaths": {"$gt": 0}}
             kdr_pipeline = [
@@ -329,15 +329,15 @@ class AutomatedLeaderboard(discord.Cog):
             ]
             kdr_cursor = self.bot.db_manager.pvp_data.aggregate(kdr_pipeline)
             data["top_kdr"] = await kdr_cursor.to_list(length=None)
-            
+
             # Longest distances from pvp_data
             distance_cursor = self.bot.db_manager.pvp_data.find(base_query).sort("personal_best_distance", -1).limit(10)
             data["top_distances"] = await distance_cursor.to_list(length=None)
-            
+
             # Best streaks from pvp_data
             streak_cursor = self.bot.db_manager.pvp_data.find(base_query).sort("longest_streak", -1).limit(10)
             data["top_streaks"] = await streak_cursor.to_list(length=None)
-            
+
             # Top weapons from kill_events
             weapon_pipeline = [
                 {"$match": {**base_query, "is_suicide": False}},
@@ -347,13 +347,13 @@ class AutomatedLeaderboard(discord.Cog):
             ]
             weapon_cursor = self.bot.db_manager.kill_events.aggregate(weapon_pipeline)
             data["top_weapons"] = await weapon_cursor.to_list(length=None)
-            
+
             # Top factions from factions collection
             faction_cursor = self.bot.db_manager.factions.find(base_query).sort("kills", -1).limit(5)
             data["top_factions"] = await faction_cursor.to_list(length=None)
-            
+
             return data
-            
+
         except Exception as e:
             logger.error(f"Failed to collect leaderboard data: {e}")
             return {}
@@ -362,6 +362,15 @@ class AutomatedLeaderboard(discord.Cog):
     async def update_guild_leaderboard(self, guild_config: Dict[str, Any], force_create: bool = False):
         """Update leaderboard for a specific guild"""
         try:
+            # Check if database is ready
+            if not self.bot.db_manager:
+                logger.error("Database manager not available")
+                return
+
+            # Check if guild configs collection exists
+            if not hasattr(self.bot.db_manager, 'guild_configs'):
+                logger.error("Guild configs collection not available")
+                return
 
             pass
             guild_id = guild_config['guild_id']
@@ -393,12 +402,12 @@ class AutomatedLeaderboard(discord.Cog):
                 if embed:
                     # Create interactive components for multi-user functionality
                     view = LeaderboardView(guild_id)
-                    
+
                     # Try to find and update existing leaderboard message
                     existing_message = None
                     if not force_create:
                         existing_message = await self.find_existing_leaderboard_message(channel, "Consolidated Leaderboard")
-                    
+
                     if existing_message:
                         # Edit existing message with new embed and components
                         try:
@@ -468,7 +477,7 @@ class AutomatedLeaderboard(discord.Cog):
             pass
             # First try to get stored message ID from database
             stored_message_id = await self.get_stored_leaderboard_message_id(channel.guild.id, channel.id)
-            
+
             if stored_message_id:
                 try:
 
@@ -488,7 +497,7 @@ class AutomatedLeaderboard(discord.Cog):
                         "message_type": "consolidated_leaderboard"
                     })
                     logger.info("Stored message was deleted, removed from database")
-            
+
             # Fallback: search recent messages
             async for message in channel.history(limit=50):
                 if (message.author == self.bot.user and 
@@ -521,11 +530,11 @@ class AutomatedLeaderboard(discord.Cog):
                     message = await channel.send(embed=embed, file=file_attachment)
                 else:
                     message = await channel.send(embed=embed)
-            
+
             # Store message ID for persistence across bot restarts
             if message:
                 await self.store_leaderboard_message_id(channel.guild.id, channel.id, message.id)
-                
+
         except Exception as e:
             logger.error(f"Error posting new leaderboard message: {e}")
 
@@ -547,11 +556,11 @@ class AutomatedLeaderboard(discord.Cog):
                     message = await channel.send(embed=embed, file=file_attachment, view=view)
                 else:
                     message = await channel.send(embed=embed, view=view)
-            
+
             # Store message ID for persistence across bot restarts
             if message:
                 await self.store_leaderboard_message_id(channel.guild.id, channel.id, message.id)
-                
+
         except Exception as e:
             logger.error(f"Error posting enhanced leaderboard message: {e}")
 
@@ -584,7 +593,7 @@ class AutomatedLeaderboard(discord.Cog):
         try:
             # Collect comprehensive leaderboard data
             data = await self._collect_leaderboard_data(guild_id, server_id)
-            
+
             # Create main leaderboard embed with enhanced formatting
             embed = discord.Embed(
                 title="🏆 **EMERALD KILLFEED RANKINGS** 🏆",
@@ -592,45 +601,45 @@ class AutomatedLeaderboard(discord.Cog):
                 color=0x00ff88,  # Emerald green theme
                 timestamp=datetime.now(timezone.utc)
             )
-            
+
             # Set thumbnail logo
             embed.set_thumbnail(url="attachment://Leaderboard.png")
-            
+
             # Set author with server branding
             embed.set_author(
                 name="Emerald's Killfeed",
                 icon_url="attachment://Leaderboard.png"
             )
-            
+
             # Top Killers Section (Enhanced with emojis and formatting)
             if data.get('top_killers'):
                 killer_text = ""
                 medals = ["🥇", "🥈", "🥉", "🏅", "🎖️"]
-                
+
                 for i, player in enumerate(data['top_killers'][:5], 1):
                     name = player.get('player_name', 'Unknown')
                     kills = player.get('kills', 0)
                     deaths = player.get('deaths', 0)
-                    
+
                     # Get faction info
                     faction = await self.get_player_faction(guild_id, name)
                     faction_badge = f" `[{faction}]`" if faction else ""
-                    
+
                     # Medal or rank indicator
                     rank_indicator = medals[i-1] if i <= len(medals) else f"`#{i}`"
-                    
+
                     # Calculate KDR for display
                     kdr = round(kills / max(deaths, 1), 2)
-                    
+
                     killer_text += f"{rank_indicator} **{name}**{faction_badge}\n"
                     killer_text += f"   └ `{kills:,}` kills • `{kdr}` KDR\n\n"
-                
+
                 embed.add_field(
                     name="🔥 **TOP ELIMINATORS**",
                     value=killer_text or "No data available",
                     inline=True
                 )
-            
+
             # Top KDR Section (Enhanced)
             if data.get('top_kdr'):
                 kdr_text = ""
@@ -638,45 +647,45 @@ class AutomatedLeaderboard(discord.Cog):
                     name = player.get('player_name', 'Unknown')
                     kdr = player.get('kdr', 0.0)
                     kills = player.get('kills', 0)
-                    
+
                     faction = await self.get_player_faction(guild_id, name)
                     faction_badge = f" `[{faction}]`" if faction else ""
-                    
+
                     kdr_text += f"`{i}.` **{name}**{faction_badge}\n"
                     kdr_text += f"   └ `{kdr:.2f}` KDR • `{kills}` kills\n\n"
-                
+
                 embed.add_field(
                     name="⚡ **ELITE RATIOS**",
                     value=kdr_text or "No data available",
                     inline=True
                 )
-            
+
             # Top Distances Section (Enhanced)
             if data.get('top_distances'):
                 distance_text = ""
                 for i, player in enumerate(data['top_distances'][:3], 1):
                     name = player.get('player_name', 'Unknown')
                     distance = player.get('personal_best_distance', 0.0)
-                    
+
                     faction = await self.get_player_faction(guild_id, name)
                     faction_badge = f" `[{faction}]`" if faction else ""
-                    
+
                     distance_text += f"`{i}.` **{name}**{faction_badge}\n"
                     distance_text += f"   └ `{distance:,.0f}m` longest shot\n\n"
-                
+
                 embed.add_field(
                     name="🎯 **SNIPER ELITE**",
                     value=distance_text or "No data available",
                     inline=True
                 )
-            
+
             # Statistics Footer Section
             total_kills = sum(p.get('kills', 0) for p in data.get('top_killers', []))
             total_players = len(data.get('top_killers', []))
-            
+
             # Server activity indicator
             activity_level = "🟢 HIGH" if total_kills > 100 else "🟡 MEDIUM" if total_kills > 20 else "🔴 LOW"
-            
+
             embed.add_field(
                 name="📊 **SERVER STATISTICS**",
                 value=f"**Activity Level:** {activity_level}\n"
@@ -685,13 +694,13 @@ class AutomatedLeaderboard(discord.Cog):
                       f"**Last Updated:** <t:{int(datetime.now(timezone.utc).timestamp())}:R>",
                 inline=False
             )
-            
+
             # Footer with update info
             embed.set_footer(
                 text="🔄 Auto-updates every hour • React with 📊 for detailed stats",
                 icon_url="attachment://Leaderboard.png"
             )
-            
+
             # Load thumbnail attachment
             file_attachment = None
             try:
@@ -701,7 +710,7 @@ class AutomatedLeaderboard(discord.Cog):
                     file_attachment = discord.File(thumbnail_path, filename="Leaderboard.png")
             except Exception as e:
                 logger.warning(f"Could not load thumbnail: {e}")
-            
+
             return embed, file_attachment
         except Exception as e:
             logger.error(f"Error creating enhanced leaderboard: {e}")
@@ -787,6 +796,7 @@ class AutomatedLeaderboard(discord.Cog):
         try:
 
             pass
+            # Use exact same query as working leaderboard command
             # Use exact same query as working leaderboard command
             cursor = self.bot.db_manager.kill_events.find({
                 "guild_id": guild_id,
@@ -883,7 +893,7 @@ class AutomatedLeaderboard(discord.Cog):
             # Sort by kills and limit
             factions_list.sort(key=lambda x: x['kills'], reverse=True)
             return factions_list[:limit]
-            
+
         except Exception as e:
             logger.error(f"Failed to get top factions: {e}")
             return []
