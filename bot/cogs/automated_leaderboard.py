@@ -1,13 +1,16 @@
-"""Fixes the incomplete setup function in the automated_leaderboard cog."""
 """
 Emerald's Killfeed - Automated Consolidated Leaderboard
 Posts and updates consolidated leaderboards every 30 minutes
 """
 
-import discord
-from discord.ext import commands, tasks
-import asyncio
 import logging
+import asyncio
+
+import discord
+from discord.commands import SlashCommandGroup
+from discord.ext import commands
+from bot.cogs.autocomplete import ServerAutocomplete
+
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 from bot.utils.embed_factory import EmbedFactory
@@ -160,8 +163,6 @@ class AutomatedLeaderboard(discord.Cog):
     async def automated_leaderboard_task(self):
         """Run automated leaderboard updates every 60 minutes"""
         try:
-
-            pass
             logger.info("Running automated leaderboard update...")
 
             # Get all guilds with leaderboard channels configured
@@ -174,8 +175,6 @@ class AutomatedLeaderboard(discord.Cog):
 
             for guild_config in guilds_with_leaderboard:
                 try:
-
-                    pass
                     await self.update_guild_leaderboard(guild_config)
                 except Exception as e:
                     guild_id = guild_config.get('guild_id', 'Unknown')
@@ -194,8 +193,6 @@ class AutomatedLeaderboard(discord.Cog):
     async def initial_leaderboard_check(self):
         """Check if leaderboards are missing and create only if needed"""
         try:
-
-            pass
             # Get all guilds with leaderboard channels configured
             guilds_cursor = self.bot.db_manager.guild_configs.find({
                 "$or": [
@@ -209,8 +206,6 @@ class AutomatedLeaderboard(discord.Cog):
 
             for guild_config in guilds_with_leaderboard:
                 try:
-
-                    pass
                     # Only create if missing
                     missing = await self.check_missing_leaderboards(guild_config)
                     if missing:
@@ -228,8 +223,6 @@ class AutomatedLeaderboard(discord.Cog):
     async def check_missing_leaderboards(self, guild_config: Dict[str, Any]) -> bool:
         """Check if leaderboard messages are missing in the channel"""
         try:
-
-            pass
             guild_id = guild_config['guild_id']
             guild = self.bot.get_guild(guild_id)
             if not guild:
@@ -256,8 +249,6 @@ class AutomatedLeaderboard(discord.Cog):
     async def get_leaderboard_channel(self, guild_config: Dict[str, Any]):
         """Get the configured leaderboard channel"""
         try:
-
-            pass
             guild_id = guild_config['guild_id']
             guild = self.bot.get_guild(guild_id)
             if not guild:
@@ -286,8 +277,6 @@ class AutomatedLeaderboard(discord.Cog):
     async def get_top_kills(self, guild_id: int, limit: int = 10, server_id: str = None):
         """Get top killers for automated leaderboard"""
         try:
-
-            pass
             query = {
                 "guild_id": guild_id,
                 "kills": {"$gt": 0}
@@ -307,8 +296,6 @@ class AutomatedLeaderboard(discord.Cog):
     async def _collect_leaderboard_data(self, guild_id: int, server_id: str = None) -> Dict[str, Any]:
         """Collect all leaderboard data from correct database collections"""
         try:
-
-            pass
             data = {}
 
             # Base query for filtering
@@ -373,7 +360,6 @@ class AutomatedLeaderboard(discord.Cog):
                 logger.error("Guild configs collection not available")
                 return
 
-            pass
             guild_id = guild_config['guild_id']
             guild = self.bot.get_guild(guild_id)
             if not guild:
@@ -393,8 +379,6 @@ class AutomatedLeaderboard(discord.Cog):
 
             # Create one consolidated leaderboard for all servers in the guild
             try:
-
-                pass
                 # Create enhanced consolidated leaderboard for the entire guild (all servers combined)
                 embed, file_attachment = await self.create_enhanced_consolidated_leaderboard(
                     guild_id, None, "All Servers"
@@ -433,8 +417,6 @@ class AutomatedLeaderboard(discord.Cog):
     async def get_stored_leaderboard_message_id(self, guild_id: int, channel_id: int) -> Optional[int]:
         """Get stored leaderboard message ID from database for persistence across restarts"""
         try:
-
-            pass
             stored_data = await self.bot.db_manager.leaderboard_messages.find_one({
                 "guild_id": guild_id,
                 "channel_id": channel_id,
@@ -448,8 +430,6 @@ class AutomatedLeaderboard(discord.Cog):
     async def store_leaderboard_message_id(self, guild_id: int, channel_id: int, message_id: int):
         """Store leaderboard message ID in database for persistence across restarts"""
         try:
-
-            pass
             await self.bot.db_manager.leaderboard_messages.update_one(
                 {
                     "guild_id": guild_id,
@@ -474,15 +454,11 @@ class AutomatedLeaderboard(discord.Cog):
     async def find_existing_leaderboard_message(self, channel, server_name: str):
         """Find existing leaderboard message using stored ID for persistence across restarts"""
         try:
-
-            pass
             # First try to get stored message ID from database
             stored_message_id = await self.get_stored_leaderboard_message_id(channel.guild.id, channel.id)
 
             if stored_message_id:
                 try:
-
-                    pass
                     # Try to fetch the stored message
                     stored_message = await channel.fetch_message(stored_message_id)
                     # Verify it's still a valid leaderboard message
@@ -515,8 +491,6 @@ class AutomatedLeaderboard(discord.Cog):
     async def post_new_leaderboard_message(self, channel, embed, file_attachment):
         """Post a new leaderboard message and store ID for persistence across restarts"""
         try:
-
-            pass
             message = None
             if hasattr(self.bot, 'advanced_rate_limiter') and self.bot.advanced_rate_limiter:
                 from bot.utils.advanced_rate_limiter import MessagePriority
@@ -569,8 +543,6 @@ class AutomatedLeaderboard(discord.Cog):
         """Check if guild has premium access"""
         # Automated leaderboards is guild-wide premium feature - requires at least 1 premium server
         try:
-
-            pass
             if hasattr(self.bot, 'premium_manager_v2'):
                 return await self.bot.premium_manager_v2.has_premium_access(guild_id)
             else:
@@ -717,17 +689,9 @@ class AutomatedLeaderboard(discord.Cog):
             logger.error(f"Error creating enhanced leaderboard: {e}")
             return None, None
 
-
-
-        except Exception as e:
-            logger.error(f"Failed to create consolidated leaderboard: {e}")
-            return None, None
-
     async def get_top_kdr(self, guild_id: int, limit: int, server_id: str = None) -> List[Dict[str, Any]]:
         """Get top KDR players"""
         try:
-
-            pass
             query = {
                 "guild_id": guild_id,
                 "kills": {"$gte": 1}
@@ -755,8 +719,6 @@ class AutomatedLeaderboard(discord.Cog):
     async def get_top_distance(self, guild_id: int, limit: int, server_id: str = None) -> List[Dict[str, Any]]:
         """Get top distance players"""
         try:
-
-            pass
             query = {
                 "guild_id": guild_id,
                 "personal_best_distance": {"$gt": 0}
@@ -775,8 +737,6 @@ class AutomatedLeaderboard(discord.Cog):
     async def get_top_streaks(self, guild_id: int, limit: int, server_id: str = None) -> List[Dict[str, Any]]:
         """Get top streak players"""
         try:
-
-            pass
             query = {
                 "guild_id": guild_id,
                 "longest_streak": {"$gt": 0}
