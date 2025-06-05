@@ -1,222 +1,219 @@
 import discord
-
+import logging
+from datetime import datetime
+from typing import Dict, Any
 from discord.ext import commands
 from bot.cogs.autocomplete import ServerAutocomplete
 
+logger = logging.getLogger(__name__)
 
-class ScalableUnifiedProcessor(commands.Cog):
+class Stats(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.processor_enabled = True
-        self.kill_event_buffer = []  # Holds kill events before processing
-        self.buffer_size = 50  # Number of kill events to buffer before processing
-        self.processing_interval = 10  # Interval (seconds) to process events if buffer not full
-        self.recent_kill_times = {}  # Track recent kill times per player
-        self.flood_threshold = 5  # Max kills allowed within time_window
-        self.time_window = 60  # Seconds within which to check for flooding
-        self.processor_running = False
 
-    @commands.Cog.listener()
-    async def on_ready(self):
-        """Start the background task when the bot is ready."""
-        if not self.processor_running:
-            self.bot.loop.create_task(self.process_kill_events())
-            self.processor_running = True
-            logger.info("Kill event processor started")
-
-    async def is_premium(self, guild_id: int) -> bool:
-        """Unified premium check"""
+    @discord.slash_command(name="stats", description="Display player statistics")
+    async def stats(self, ctx: discord.ApplicationContext, 
+                   player_name: discord.Option(str, "Player name to get stats for"),
+                   server: discord.Option(str, "Server to get stats from", autocomplete=ServerAutocomplete.autocomplete, required=False)):
+        """Display comprehensive player statistics"""
         try:
+            await ctx.defer()
+            
+            guild_id = ctx.guild_id
+            server_id = server or 'default'
+            
+            # Validate database manager exists
+            if not self.bot.db_manager:
+                logger.error("Database manager not initialized for stats")
+                error_embed = discord.Embed(
+                    title="❌ Database Error",
+                    description="Database connection unavailable",
+                    color=0xff6b6b
+                )
+                await ctx.followup.send(embed=error_embed)
+                return
 
-            pass
-            if hasattr(self.bot, 'premium_manager_v2') and hasattr(self.bot.premium_manager_v2, 'has_premium_access'):
-                return await self.bot.premium_manager_v2.has_premium_access(guild_id)
-            elif hasattr(self.bot, 'db_manager') and hasattr(self.bot.db_manager, 'has_premium_access'):
-                return await self.bot.db_manager.has_premium_access(guild_id)  # Fallback
-            else:
-                return False
-        except Exception as e:
-            logger.error(f"Premium check failed: {e}")
-            return False
+            # Get player statistics with proper validation
+            stats = await self.bot.db_manager.get_player_combined_stats(player_name)
+            logger.info(f"Retrieved stats for {player_name}: {stats}")
 
-    async def validate_kill_event(self, kill_event: Dict[str, Any]) -> bool:
-        """Enhanced kill event validation"""
-        required_fields = ['guild_id', 'killer', 'victim', 'weapon', 'timestamp', 'server_id', 'is_suicide']
-        if not all(kill_event.get(field) is not None for field in required_fields):
-            logger.warning(f"Invalid kill event: Missing required fields in {kill_event}")
-            return False
+            if not stats or not any([stats.get('kills', 0), stats.get('deaths', 0)]):
+                embed = discord.Embed(
+                    title="📊 Player Not Found",
+                    description=f"No PvP data found for player **{player_name}**",
+                    color=0xff6b6b
+                )
+                await ctx.followup.send(embed=embed)
+                return
 
-        # Additional checks for data types and values
-        if not isinstance(kill_event['guild_id'], int):
-            logger.warning(f"Invalid kill event: guild_id must be an integer in {kill_event}")
-            return False
-        if not all(isinstance(kill_event[key], str) for key in ['killer', 'victim', 'weapon', 'server_id']):
-            logger.warning(f"Invalid kill event: killer, victim, weapon, server_id must be strings in {kill_event}")
-            return False
-        if not isinstance(kill_event['timestamp'], (int, float)):
-            logger.warning(f"Invalid kill event: timestamp must be a number in {kill_event}")
-            return False
-        if not isinstance(kill_event['is_suicide'], bool):
-            logger.warning(f"Invalid kill event: is_suicide must be a boolean in {kill_event}")
-            return False
-
-        return True
-
-    async def is_flood(self, killer: str) -> bool:
-        """Check if a player is flooding the killfeed"""
-        now = datetime.utcnow().timestamp()
-        if killer not in self.recent_kill_times:
-            self.recent_kill_times[killer] = []
-
-        # Clean up old timestamps
-        self.recent_kill_times[killer] = [t for t in self.recent_kill_times[killer] if now - t <= self.time_window]
-        self.recent_kill_times[killer].append(now)
-
-        kill_count = len(self.recent_kill_times[killer])
-        is_flooding = kill_count > self.flood_threshold
-        if is_flooding:
-            logger.warning(f"Player {killer} is flooding the killfeed ({kill_count} kills in {self.time_window} seconds)")
-        return is_flooding
-
-    async def add_kill_event(self, kill_event: Dict[str, Any]):
-        """Add a validated kill event to the buffer"""
-        if not self.processor_enabled:
-            return
-
-        if not await self.validate_kill_event(kill_event):
-            return  # Skip invalid events
-
-        self.kill_event_buffer.append(kill_event)
-        logger.debug(f"Kill event added to buffer. Buffer size: {len(self.kill_event_buffer)}")
-
-        if len(self.kill_event_buffer) >= self.buffer_size:
-            await self.process_kill_events()  # Process immediately if buffer is full
-
-    async def process_kill_events(self):
-        """Process kill events in the buffer in batches"""
-        if not self.processor_enabled:
-            return
-
-        if not self.bot.is_ready() or not hasattr(self.bot, 'db_manager') or not self.bot.db_manager:
-            logger.warning("Bot or database manager not ready. Skipping kill event processing.")
-            return
-
-        if not self.kill_event_buffer:
-            logger.debug("No kill events to process")
-            return
-
-        try:
-
-            pass
-            while self.kill_event_buffer:
-                batch = self.kill_event_buffer[:20]  # Process in smaller batches
-                self.kill_event_buffer = self.kill_event_buffer[20:]  # Remove processed events
-
-                tasks = [self.process_single_kill_event(event) for event in batch]
-                await asyncio.gather(*tasks)
-
-                logger.info(f"Processed a batch of {len(batch)} kill events. Remaining in buffer: {len(self.kill_event_buffer)}")
-
-        except Exception as e:
-            logger.error(f"Error processing kill events: {e}")
-            import traceback
-            logger.error(f"Traceback: {traceback.format_exc()}")
-
-    async def process_single_kill_event(self, kill_event: Dict[str, Any]):
-        """Process a single kill event - extracted for clarity"""
-        try:
-
-            pass
-            guild_id = kill_event['guild_id']
-            killer = kill_event['killer']
-            victim = kill_event['victim']
-            weapon = kill_event['weapon']
-            server_id = kill_event['server_id']
-            is_suicide = kill_event['is_suicide']
-            timestamp = kill_event['timestamp']  # Correctly access the timestamp
-
-            # Premium and flood checks
-            is_premium = await self.is_premium(guild_id)
-            if not is_premium:
-                return  # Skip if not premium
-
-            if await self.is_flood(killer):
-                return  # Skip if flooding
-
-            # Database operations (moved inside try block)
+            # Ensure all numeric values are properly typed with validation
             try:
-                await self.bot.db_manager.record_kill_event(kill_event)
+                validated_stats = {
+                    'player_name': str(player_name),
+                    'server_name': server_id,
+                    'kills': int(stats.get('kills', 0)),
+                    'deaths': int(stats.get('deaths', 0)),
+                    'kdr': float(stats.get('kdr', 0.0)) if stats.get('kdr') else 0.0,
+                    'personal_best_distance': float(stats.get('personal_best_distance', 0)) if stats.get('personal_best_distance') else 0.0,
+                    'favorite_weapon': str(stats.get('favorite_weapon', 'Unknown')),
+                    'weapon_kills': int(stats.get('weapon_kills', 0)) if stats.get('weapon_kills') else 0,
+                    'active_days': int(stats.get('active_days', 0)) if stats.get('active_days') else 0,
+                    'total_distance': float(stats.get('total_distance', 0)) if stats.get('total_distance') else 0.0,
+                    'guild_id': guild_id
+                }
+                logger.info(f"Validated stats: {validated_stats}")
+            except (ValueError, TypeError) as e:
+                logger.error(f"Stats validation error: {e}")
+                error_embed = discord.Embed(
+                    title="❌ Data Error", 
+                    description="Invalid statistics data format",
+                    color=0xff6b6b
+                )
+                await ctx.followup.send(embed=error_embed)
+                return
 
-                killer_stats = await self.bot.db_manager.get_player_stats(guild_id, killer, server_id)
-                victim_stats = await self.bot.db_manager.get_player_stats(guild_id, victim, server_id)
+            # Create advanced stats embed using EmbedFactory
+            from bot.utils.embed_factory import EmbedFactory
+            try:
+                embed, file_attachment = await EmbedFactory.build_advanced_stats_embed(validated_stats)
 
-                if not killer_stats:
-                    killer_stats = {'kills': 0, 'deaths': 0, 'suicides': 0}  # Initialize if missing
-
-                if not victim_stats:
-                    victim_stats = {'kills': 0, 'deaths': 0, 'suicides': 0}  # Initialize if missing
-
-                # Handle suicides
-                if is_suicide:
-                    await self.bot.db_manager.update_player_stats(
-                        guild_id, killer, server_id,
-                        kills=killer_stats.get('kills', 0),
-                        deaths=killer_stats.get('deaths', 0),
-                        suicides=killer_stats.get('suicides', 0) + 1
-                    )
+                if embed:
+                    await ctx.followup.send(embed=embed, file=file_attachment)
+                    logger.info(f"✅ Stats embed sent for {player_name}")
                 else:
-                    # Regular kill
-                    await self.bot.db_manager.update_player_stats(
-                        guild_id, killer, server_id,
-                        kills=killer_stats.get('kills', 0) + 1,
-                        deaths=killer_stats.get('deaths', 0),
-                        suicides=killer_stats.get('suicides', 0)
-                    )
+                    logger.error("EmbedFactory returned None embed")
+                    raise Exception("Embed creation failed")
 
-                    await self.bot.db_manager.update_player_stats(
-                        guild_id, victim, server_id,
-                        kills=victim_stats.get('kills', 0),
-                        deaths=victim_stats.get('deaths', 0) + 1,
-                        suicides=victim_stats.get('suicides', 0)
-                    )
-
-                logger.info(f"Kill event processed: {killer} killed {victim} with {weapon} in guild {guild_id}")
-
-            except Exception as db_error:
-                logger.error(f"Database error: {db_error}")
-                import traceback
-                logger.error(f"Database traceback: {traceback.format_exc()}")
+            except Exception as embed_error:
+                logger.error(f"EmbedFactory error: {embed_error}")
+                # Fallback embed if factory fails
+                fallback_embed = discord.Embed(
+                    title=f"📊 Stats for {player_name}",
+                    description=f"**Kills:** {validated_stats['kills']}\n**Deaths:** {validated_stats['deaths']}\n**K/D:** {validated_stats['kdr']:.2f}",
+                    color=0x00ff88
+                )
+                await ctx.followup.send(embed=fallback_embed)
 
         except Exception as e:
-            logger.error(f"Failed to process kill event: {e}")
-            import traceback
-            logger.error(f"Event processing traceback: {traceback.format_exc()}")
+            logger.error(f"Stats command error: {e}")
+            try:
+                error_embed = discord.Embed(
+                    title="❌ Error",
+                    description="Failed to retrieve player statistics",
+                    color=0xff6b6b
+                )
+                await ctx.followup.send(embed=error_embed)
+            except:
+                pass
 
-    @commands.slash_command(name="toggleprocessor", description="Enable/disable kill event processing (admin only)")
-    @commands.has_permissions(administrator=True)
-    async def toggle_processor(self, ctx: discord.ApplicationContext):
-        """Enable or disable the kill event processor"""
-        self.processor_enabled = not self.processor_enabled
-        status = "enabled" if self.processor_enabled else "disabled"
-        await ctx.respond(f"Kill event processor is now {status}", ephemeral=True)
-        logger.info(f"Kill event processor toggled {status} by {ctx.author.id}")
-
-    @commands.slash_command(name="flushbuffer", description="Manually process all kill events in the buffer (admin only)")
-    @commands.has_permissions(administrator=True)
-    async def flush_buffer(self, ctx: discord.ApplicationContext):
-        """Manually trigger processing of all kill events in the buffer"""
+    @discord.slash_command(name="leaderboard", description="Display server leaderboards")
+    async def leaderboard(self, ctx: discord.ApplicationContext,
+                         leaderboard_type: discord.Option(str, "Type of leaderboard", choices=["kills", "deaths", "kdr"]),
+                         server: discord.Option(str, "Server to get leaderboard from", autocomplete=ServerAutocomplete.autocomplete, required=False)):
+        """Display server leaderboards"""
         try:
-            await ctx.defer(ephemeral=True)
-            buffer_size = len(self.kill_event_buffer)
-            await self.process_kill_events()  # Force processing
-            await ctx.followup.send(f"Manually processed {buffer_size} kill events from the buffer.", ephemeral=True)
-            logger.info(f"Kill event buffer flushed by {ctx.author.id}")
+            await ctx.defer()
+
+            # Validate database manager exists
+            if not self.bot.db_manager:
+                logger.error("Database manager not initialized for leaderboard")
+                error_embed = discord.Embed(
+                    title="❌ Database Error",
+                    description="Database connection unavailable",
+                    color=0xff6b6b
+                )
+                await ctx.followup.send(embed=error_embed)
+                return
+
+            server_id = server or 'default'
+            
+            # Get leaderboard data with validation
+            leaderboard_data = await self.bot.db_manager.get_leaderboard(leaderboard_type, guild_id=ctx.guild_id, server_id=server_id, limit=10)
+            logger.info(f"Retrieved {leaderboard_type} leaderboard: {len(leaderboard_data) if leaderboard_data else 0} entries")
+
+            if not leaderboard_data:
+                embed = discord.Embed(
+                    title="📊 No Data",
+                    description=f"No {leaderboard_type} data available",
+                    color=0xff6b6b
+                )
+                await ctx.followup.send(embed=embed)
+                return
+
+            # Validate and type-cast leaderboard entries
+            validated_data = []
+            for entry in leaderboard_data:
+                try:
+                    validated_entry = {
+                        'name': str(entry.get('player_name', 'Unknown')),
+                        'value': entry.get(leaderboard_type, 0),
+                        'metric': leaderboard_type
+                    }
+                    validated_data.append(validated_entry)
+                except (ValueError, TypeError) as e:
+                    logger.warning(f"Skipping invalid leaderboard entry: {e}")
+                    continue
+
+            if not validated_data:
+                embed = discord.Embed(
+                    title="📊 Data Error",
+                    description="No valid leaderboard entries found", 
+                    color=0xff6b6b
+                )
+                await ctx.followup.send(embed=embed)
+                return
+
+            # Create leaderboard embed using EmbedFactory
+            from bot.utils.embed_factory import EmbedFactory
+            try:
+                embed_data = {
+                    'title': f"{leaderboard_type.upper()} LEADERBOARD",
+                    'description': f"Top players by {leaderboard_type}",
+                    'leaderboard_type': leaderboard_type,
+                    'rankings_data': validated_data,
+                    'server_name': server_id,
+                    'guild_id': ctx.guild_id
+                }
+
+                embed, file_attachment = await EmbedFactory.build_advanced_leaderboard_embed(embed_data)
+
+                if embed:
+                    await ctx.followup.send(embed=embed, file=file_attachment)
+                    logger.info(f"✅ {leaderboard_type} leaderboard sent with {len(validated_data)} entries")
+                else:
+                    logger.error("EmbedFactory returned None for leaderboard")
+                    raise Exception("Leaderboard embed creation failed")
+
+            except Exception as embed_error:
+                logger.error(f"Leaderboard EmbedFactory error: {embed_error}")
+                # Fallback embed
+                fallback_embed = discord.Embed(
+                    title=f"📊 {leaderboard_type.title()} Leaderboard",
+                    description=f"Top {len(validated_data)} players",
+                    color=0x00ff88
+                )
+
+                leaderboard_text = ""
+                for i, entry in enumerate(validated_data[:10], 1):
+                    leaderboard_text += f"{i}. **{entry['name']}** - {entry['value']}\n"
+
+                fallback_embed.add_field(name="Rankings", value=leaderboard_text or "No data", inline=False)
+                await ctx.followup.send(embed=fallback_embed)
+
         except Exception as e:
-            logger.error(f"Failed to flush buffer: {e}")
-            await ctx.followup.send("Failed to flush buffer.", ephemeral=True)
+            logger.error(f"Leaderboard command error: {e}")
+            try:
+                error_embed = discord.Embed(
+                    title="❌ Error",
+                    description="Failed to retrieve leaderboard data",
+                    color=0xff6b6b
+                )
+                await ctx.followup.send(embed=error_embed)
+            except:
+                pass
 
 async def setup(bot):
-    await bot.add_cog(ScalableUnifiedProcessor(bot))
+    await bot.add_cog(Stats(bot))
 ```
 
 ```python

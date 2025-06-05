@@ -811,4 +811,6 @@ class EmbedFactory:
         'GA_Military_02_Mis1': 'Military Base Mission #2',
         'GA_Military_03_Mis_01': 'Military Base Mission #3',
         'GA_Military_04_Mis1': 'Military Base Mission #4',
-        'GA
+        'GA_Bunker_01_Mis1': 'Bunker Mission #1',
+        'GA_Kamensk_Mis_1': 'Kamensk Mission #1'
+    }
