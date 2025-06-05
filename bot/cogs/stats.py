@@ -160,29 +160,39 @@ class Stats(discord.Cog):
                         # Enhanced logging to track actual data retrieval
                         logger.debug(f"Processing server stats for {character}: kills={server_stats.get('kills', 0)}, deaths={server_stats.get('deaths', 0)}")
 
-                        kills = max(0, server_stats.get('kills', 0))
-                        deaths = max(0, server_stats.get('deaths', 0))
-                        suicides = max(0, server_stats.get('suicides', 0))
+                        # Ensure numeric types with validation
+                        kills = int(max(0, server_stats.get('kills', 0)))
+                        deaths = int(max(0, server_stats.get('deaths', 0)))
+                        suicides = int(max(0, server_stats.get('suicides', 0)))
 
                         combined_stats['kills'] += kills
                         combined_stats['deaths'] += deaths
                         combined_stats['suicides'] += suicides
 
                         # Track personal best distance (take the maximum across all servers)
-                        pb_distance = float(server_stats.get('personal_best_distance', 0.0))
-                        if pb_distance > combined_stats['personal_best_distance']:
-                            combined_stats['personal_best_distance'] = pb_distance
+                        try:
+                            pb_distance = float(server_stats.get('personal_best_distance', 0.0))
+                            if pb_distance > combined_stats['personal_best_distance']:
+                                combined_stats['personal_best_distance'] = pb_distance
+                        except (ValueError, TypeError):
+                            pb_distance = 0.0
 
                         # Add to total distance traveled
-                        total_distance = float(server_stats.get('total_distance', 0.0))
-                        combined_stats['total_distance'] += total_distance
+                        try:
+                            total_distance = float(server_stats.get('total_distance', 0.0))
+                            combined_stats['total_distance'] += total_distance
+                        except (ValueError, TypeError):
+                            total_distance = 0.0
 
                         combined_stats['servers_played'] += 1
 
                         # Track best streak
-                        best_streak = max(0, server_stats.get('best_streak', 0))
-                        if best_streak > combined_stats['best_streak']:
-                            combined_stats['best_streak'] = best_streak
+                        try:
+                            best_streak = int(max(0, server_stats.get('best_streak', 0)))
+                            if best_streak > combined_stats['best_streak']:
+                                combined_stats['best_streak'] = best_streak
+                        except (ValueError, TypeError):
+                            best_streak = 0
 
                         logger.info(f"Character {character}: +{kills} kills, +{deaths} deaths. Total: {combined_stats['kills']} kills, {combined_stats['deaths']} deaths")
 
@@ -190,9 +200,9 @@ class Stats(discord.Cog):
                     logger.error(f"Error processing character {character}: {char_error}")
                     continue
 
-            # Calculate KDR safely
+            # Calculate KDR safely with proper formatting
             if combined_stats['deaths'] > 0:
-                combined_stats['kdr'] = combined_stats['kills'] / combined_stats['deaths']
+                combined_stats['kdr'] = float(combined_stats['kills']) / float(combined_stats['deaths'])
             else:
                 combined_stats['kdr'] = float(combined_stats['kills'])
 
@@ -509,9 +519,9 @@ class Stats(discord.Cog):
 
             stats = await asyncio.wait_for(get_stats(), timeout=8.0)
 
-            total_kills = stats['kills']
-            total_deaths = stats['deaths']
-            total_kdr = f"{stats['kdr']:.2f}"
+            total_kills = int(stats['kills'])
+            total_deaths = int(stats['deaths'])
+            total_kdr = f"{float(stats['kdr']):.2f}"
 
             # Ensure we have actual data, not placeholders
             if total_kills == 0 and total_deaths == 0:
@@ -542,28 +552,28 @@ class Stats(discord.Cog):
 
             # Revolutionary 20/10 Stats Embed - Advanced Military Intelligence Profile
             embed_data = {
-                'player_name': display_name,
-                'server_name': server_name,
-                'kills': total_kills,
-                'deaths': total_deaths,
-                'kdr': total_kdr,
-                'personal_best_distance': stats.get('personal_best_distance', 0.0),
-                'total_distance': stats.get('total_distance', 0.0),
-                'favorite_weapon': stats.get('favorite_weapon'),
-                'suicides': stats.get('suicides', 0),
-                'best_streak': stats.get('best_streak', 0),
-                'current_streak': stats.get('current_streak', 0),
-                'servers_played': stats.get('servers_played', 0),
-                'weapon_stats': stats.get('weapon_stats', {}),
-                'most_eliminated_player': stats.get('most_eliminated_player'),
-                'most_eliminated_count': stats.get('most_eliminated_count', 0),
-                'eliminated_by_most_player': stats.get('eliminated_by_most_player'),
-                'eliminated_by_most_count': stats.get('eliminated_by_most_count', 0),
-                'rivalry_score': stats.get('rivalry_score', 0),
-                'active_days': stats.get('active_days', 42)
+                'player_name': str(display_name),
+                'server_name': str(server_name),
+                'kills': int(total_kills),
+                'deaths': int(total_deaths),
+                'kdr': float(stats['kdr']),
+                'personal_best_distance': float(stats.get('personal_best_distance', 0.0)),
+                'total_distance': float(stats.get('total_distance', 0.0)),
+                'favorite_weapon': str(stats.get('favorite_weapon', 'Unknown')),
+                'suicides': int(stats.get('suicides', 0)),
+                'best_streak': int(stats.get('best_streak', 0)),
+                'current_streak': int(stats.get('current_streak', 0)),
+                'servers_played': int(stats.get('servers_played', 0)),
+                'weapon_stats': dict(stats.get('weapon_stats', {})),
+                'most_eliminated_player': str(stats.get('most_eliminated_player', 'None')),
+                'most_eliminated_count': int(stats.get('most_eliminated_count', 0)),
+                'eliminated_by_most_player': str(stats.get('eliminated_by_most_player', 'None')),
+                'eliminated_by_most_count': int(stats.get('eliminated_by_most_count', 0)),
+                'rivalry_score': int(stats.get('rivalry_score', 0)),
+                'active_days': int(stats.get('active_days', 42))
             }
 
-            embed, file = await EmbedFactory.build_advanced_stats_profile(embed_data)
+            embed, file = await EmbedFactory.build_advanced_stats_embed(embed_data)
 
             if file:
                 try:
@@ -816,13 +826,13 @@ class Stats(discord.Cog):
             stats1 = await self.get_player_combined_stats(guild_id or 0, player1_data['linked_characters'])
             stats2 = await self.get_player_combined_stats(guild_id or 0, player2_data['linked_characters'])
 
-            # Use EmbedFactory for comparison embed
+            # Use EmbedFactory for comparison embed with type safety
             embed_data = {
-                'player1_name': user1.display_name,
-                'player2_name': user2.display_name,
+                'player1_name': str(user1.display_name),
+                'player2_name': str(user2.display_name),
                 'player1_stats': stats1,
                 'player2_stats': stats2,
-                'requester': ctx.author.display_name
+                'requester': str(ctx.author.display_name)
             }
 
             embed, file_attachment = await EmbedFactory.build('comparison', embed_data)

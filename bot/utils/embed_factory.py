@@ -138,7 +138,7 @@ class EmbedFactory:
         tier, indicator, color = EmbedFactory.format_performance_tier(kdr, kills)
 
         return {
-            'primary_stats': f"**Eliminations:** {kills:,}\n**Casualties:** {deaths:,}\n**K/D Ratio:** {kdr:.2f}",
+            'primary_stats': f"**Eliminations:** {int(kills):,}\n**Casualties:** {int(deaths):,}\n**K/D Ratio:** {float(kdr):.2f}",
             'performance_analysis': f"**Survival Rate:** {survival_bar}\n**Efficiency:** {efficiency_bar}",
             'classification': f"{indicator} **{tier}**",
             'color': color
@@ -278,7 +278,7 @@ class EmbedFactory:
             weapon_kills = embed_data.get('weapon_kills', 0)
             longest_shot = embed_data.get('personal_best_distance', 0)
 
-            weapon_display = f"**Primary:** {favorite_weapon}\n**Eliminations:** {weapon_kills}\n**Longest Shot:** {longest_shot:.0f}m"
+            weapon_display = f"**Primary:** {str(favorite_weapon)}\n**Eliminations:** {str(weapon_kills)}\n**Longest Shot:** {float(longest_shot):.0f}m"
 
             embed.add_field(
                 name="◆ WEAPON MASTERY",
@@ -303,7 +303,7 @@ class EmbedFactory:
             active_days = embed_data.get('active_days', 0)
             total_distance = embed_data.get('total_distance', 0)
 
-            operational_display = f"**Days Active:** {active_days}\n**Distance Traveled:** {total_distance:,.0f}m"
+            operational_display = f"**Days Active:** {str(active_days)}\n**Distance Traveled:** {float(total_distance):,.0f}m"
             embed.add_field(
                 name="◆ OPERATIONAL STATUS",
                 value=operational_display,
